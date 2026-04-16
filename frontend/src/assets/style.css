@@ -1,0 +1,20 @@
+/* src/assets/style.css */
+
+/* 1. 导入 Tailwind v4 引擎 */
+@import "tailwindcss";
+
+/* 2. 定义我们的专属主题变量 */
+@theme {
+  --font-sans: "Inter", "LXGW WenKai Screen", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* 3. 强制全局基础样式 */
+@layer base {
+  body {
+    /* 使用 Tailwind 内置的灰度变量，保护程序员的眼睛 */
+    background-color: var(--color-gray-50);
+    color: var(--color-gray-900);
+    font-family: var(--font-sans);
+  }
+}
