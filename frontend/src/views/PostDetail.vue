@@ -18,10 +18,15 @@
       <div class="border-b border-gray-200 pb-6 mb-6 flex flex-col md:flex-row md:justify-between md:items-start gap-4">
         <div>
           <h1 class="text-3xl font-bold text-gray-900 mb-3">{{ post.title }}</h1>
+          <div v-if="post.tags && post.tags.length > 0" class="flex flex-wrap gap-2 mb-4">
+            <span v-for="tag in post.tags" :key="tag" :class="['px-2.5 py-1 border rounded text-xs font-mono', getTagStyle(tag, post.status === 'deleted')]">
+              {{ tag }}
+            </span>
+          </div>
           <div class="text-sm text-gray-500 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono">
             <span class="font-bold text-gray-700">@{{ post.author?.username || 'Unknown' }}</span>
             
-            <span>{{ formatDetailedTime(post) }}</span>
+            <span>{{ formatDetailTime(post) }}</span>
             
             <router-link 
               v-if="post.parent_id" 
@@ -72,6 +77,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { MdPreview } from 'md-editor-v3'
 import { useAuthStore } from '../stores/auth'
 import { getPostById, deletePost } from '../api/posts'
+import { getTagStyle, formatDetailTime } from '../utils/helpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -96,19 +102,6 @@ const isAdmin = computed(() => {
     return false;
   }
 });
-
-// 时间格式化：如果被修改过，补充 last updated
-const formatDetailedTime = (p) => {
-  const cTime = new Date(p.created_at + 'Z')
-  const uTime = new Date(p.updated_at + 'Z')
-  const cStr = cTime.toLocaleString()
-  
-  // 判断是否有更新（防止创建时的微秒误差，判断差值是否大于2秒）
-  if (uTime.getTime() - cTime.getTime() > 2000) {
-    return `${cStr}, last updated on ${uTime.toLocaleString()}`
-  }
-  return cStr
-}
 
 const loadPost = async () => {
   loading.value = true

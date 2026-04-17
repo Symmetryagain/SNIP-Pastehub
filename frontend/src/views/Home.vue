@@ -10,11 +10,26 @@
       </div>
     </div>
 
+    <div v-if="!loading && availableTags.length > 0" class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <div class="flex items-center gap-4 mb-3">
+        <span class="text-sm font-medium text-gray-700 font-sans">筛选 (Filter)</span>
+        <div class="flex bg-white rounded border border-gray-300 overflow-hidden text-xs font-mono font-bold cursor-pointer select-none">
+          <div @click="filterMode = 'OR'" :class="['px-3 py-1 transition-colors', filterMode === 'OR' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100']">OR</div>
+          <div @click="filterMode = 'AND'" :class="['px-3 py-1 transition-colors', filterMode === 'AND' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-100']">AND</div>
+        </div>
+        <button v-if="selectedTags.length > 0" @click="selectedTags = []" class="text-xs text-gray-500 hover:text-gray-900 underline ml-auto">清除筛选</button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button v-for="tag in availableTags" :key="tag" @click="toggleFilterTag(tag)" :class="['px-2.5 py-1 rounded-md text-xs font-mono transition-all border', selectedTags.includes(tag) ? 'bg-gray-800 text-white border-gray-800 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400']">
+          #{{ tag }}
+        </button>
+      </div>
+    </div>
     <div v-if="loading" class="text-gray-500 font-mono text-sm animate-pulse">Fetching...</div>
     
     <div v-else class="space-y-4">
       <div 
-        v-for="post in posts" 
+        v-for="post in filteredPosts"
         :key="post.id"
         @click="$router.push(`/post/${post.id}`)"
         :class="[
@@ -39,7 +54,12 @@
             <span v-if="post.status === 'deleted'" class="mr-2">[已删除]</span>
             {{ post.title }}
           </h2>
-          <span class="text-xs text-gray-400 font-mono shrink-0">{{ formatDetailedTime(post) }}</span>
+          <div v-if="post.tags && post.tags.length > 0" class="flex flex-wrap gap-1.5 mt-1">
+            <span v-for="tag in post.tags" :key="tag" :class="['px-2 py-0.5 border rounded-sm text-[11px] font-mono', getTagStyle(tag, post.status === 'deleted')]">
+              {{ tag }}
+            </span>
+          </div>
+          <span class="text-xs text-gray-400 font-mono shrink-0">{{ formatListTime(post) }}</span>
         </div>
         
         <div class="mt-3 text-sm flex items-center justify-between">
@@ -59,6 +79,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { getPosts, deletePost } from '../api/posts'
+import { getTagStyle, formatListTime } from '../utils/helpers'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -94,15 +115,31 @@ const handleDelete = async (id) => {
   }
 }
 
-const formatTime = (s) => s ? new Date(s + 'Z').toLocaleString('zh-CN', {hour12:false}).slice(5, -3) : ''
-const formatDetailedTime = (p) => {
-  const c = formatTime(p.created_at)
-  if (new Date(p.updated_at + 'Z') - new Date(p.created_at + 'Z') > 2000) {
-    return `${c}, updated ${formatTime(p.updated_at)}`
-  }
-  return c
-}
-
 const handleLogout = () => { authStore.logout(); router.push('/login') }
 onMounted(fetchPosts)
+
+// --- 筛选与标签色彩哈希引擎 ---
+const selectedTags = ref([])
+const filterMode = ref('OR')
+
+const availableTags = computed(() => {
+  const tagSet = new Set()
+  posts.value.forEach(p => { if (p.tags) p.tags.forEach(t => tagSet.add(t)) })
+  return Array.from(tagSet).sort()
+})
+
+const toggleFilterTag = (tag) => {
+  if (selectedTags.value.includes(tag)) selectedTags.value = selectedTags.value.filter(t => t !== tag)
+  else selectedTags.value.push(tag)
+}
+
+const filteredPosts = computed(() => {
+  if (selectedTags.value.length === 0) return posts.value;
+  return posts.value.filter(post => {
+    const pTags = post.tags || []
+    return filterMode.value === 'OR' 
+      ? selectedTags.value.some(tag => pTags.includes(tag))
+      : selectedTags.value.every(tag => pTags.includes(tag))
+  })
+})
 </script>
