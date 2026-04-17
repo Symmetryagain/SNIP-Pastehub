@@ -29,6 +29,7 @@ class PostCreate(PostBase):
 class PostUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 class AuthorInfo(BaseModel):
     username: str
