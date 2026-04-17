@@ -47,7 +47,7 @@ docker exec -it snip_backend python init_db.py
 4. 访问
 打开浏览器访问：`http://你的服务器IP:8080`
 
-5. 管理员操作
+## 👨‍💻 管理员操作
 
 - 添加新成员：
 ```bash
