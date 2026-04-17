@@ -1,6 +1,4 @@
 # docker-compose.yml
-version: '3.8'
-
 services:
   backend:
     build: 
@@ -8,9 +6,7 @@ services:
     container_name: snip_backend
     restart: always
     volumes:
-      # 将宿主机的 ./snip_data 目录挂载到容器的 /app/data，实现数据库持久化
       - ./snip_data:/app/data
-    # 注意：后端不需要暴露 ports 给宿主机，仅在 Docker 内部网络供 Nginx 访问
 
   frontend:
     build: 
@@ -18,7 +14,6 @@ services:
     container_name: snip_frontend
     restart: always
     ports:
-      # 将外部主机的 8080 端口映射到 Nginx 容器的 80 端口
       - "8080:80"
     depends_on:
       - backend
