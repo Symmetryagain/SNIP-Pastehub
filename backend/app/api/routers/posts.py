@@ -40,6 +40,7 @@ def create_post(
     new_post = Post(
         title=post_in.title,
         content=post_in.content,
+        tags=post_in.tags,  # <--- 【修复】新增：在创建时保存 tags
         author_id=current_user.id,
         parent_id=post_in.parent_id,
         created_via="web" # 后续 CLI 可在请求体或 header 中覆盖
@@ -82,6 +83,11 @@ def update_post(
         
     if post_in.title is not None: post.title = post_in.title
     if post_in.content is not None: post.content = post_in.content
+    
+    # <--- 【修复】新增：在更新时覆盖 tags
+    # 注意：前端传来的 tags 即使是空数组 [] 也应该覆盖，表示清空所有标签
+    if post_in.tags is not None: 
+        post.tags = post_in.tags
     
     db.commit()
     db.refresh(post)

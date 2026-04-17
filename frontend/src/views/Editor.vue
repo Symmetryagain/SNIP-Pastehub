@@ -120,24 +120,23 @@ const savePost = async () => {
   if (!title.value.trim()) return
   isSaving.value = true
   
+  // 1. 统一构建 payload，千万别漏掉 tags 字段！
+  const payload = {
+    title: title.value,
+    content: content.value,
+    tags: tags.value 
+  }
+  
   try {
     let resId;
     if (isEditMode.value) {
-      // 发送 PUT 请求更新数据
-      await updatePost(targetEditId.value, {
-        title: title.value,
-        content: content.value,
-        tags: tags.value
-      })
+      // 发送 PUT 请求更新数据，传入完整的 payload
+      await updatePost(targetEditId.value, payload)
       resId = targetEditId.value
     } else {
       // 发送 POST 请求新建数据
-      const res = await createPost({
-        title: title.value,
-        content: content.value,
-        parent_id: parentId.value || null,
-        tags: tags.value
-      })
+      payload.parent_id = parentId.value || null
+      const res = await createPost(payload)
       resId = res.id
     }
     router.replace(`/post/${resId}`)
