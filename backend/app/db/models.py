@@ -1,12 +1,17 @@
 # app/db/models.py
 import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum, JSON
 from app.db.database import Base
 from sqlalchemy.orm import relationship
 
 def generate_uuid():
     return uuid.uuid4().hex
+
+# 解决 utcnow 弃用警告的向下兼容函数 (兼容 Python 3.10 到 3.12+)
+# 获取当前的 UTC 时间并剥离时区信息，确保写入 SQLite 的格式与老数据保持绝对一致
+def get_utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class User(Base):
     __tablename__ = "users"
@@ -15,7 +20,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     api_token = Column(String, unique=True, index=True, nullable=False) # 预留给 CLI
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=get_utc_now)
 
 class Post(Base):
     __tablename__ = "posts"
@@ -33,7 +38,13 @@ class Post(Base):
     status = Column(String, default="active", nullable=False) 
     
     created_via = Column(String, default="web", nullable=False) # web, api, cli
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 使用更新后的时间获取函数
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+    
+    # 【新增】存储帖子标签，使用 SQLAlchemy 内置的 JSON 类型
+    tags = Column(JSON, default=list, nullable=False)
+    
     # 建立与 User 表的关联
     author = relationship("User", backref="posts")

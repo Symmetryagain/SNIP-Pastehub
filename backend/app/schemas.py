@@ -1,6 +1,6 @@
 # app/schemas.py
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 # --- Token ---
@@ -21,6 +21,7 @@ class PostBase(BaseModel):
     title: str
     content: Optional[str] = None
     parent_id: Optional[str] = None
+    tags: List[str] = []
 
 class PostCreate(PostBase):
     pass
