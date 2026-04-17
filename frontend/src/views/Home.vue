@@ -33,16 +33,11 @@
         :key="post.id"
         @click="$router.push(`/post/${post.id}`)"
         :class="[
-          'relative block p-5 rounded-lg border transition-all group cursor-pointer',
+          'block p-5 rounded-lg border transition-all group cursor-pointer',
           post.status === 'deleted' ? 'bg-gray-50 border-gray-200 opacity-60 grayscale' : 'bg-white border-gray-200 hover:border-gray-900 hover:shadow-md'
         ]"
       >
-        <div v-if="canOperate(post)" class="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button @click.stop="handleEdit(post.id)" class="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-          <button v-if="post.status !== 'deleted'" @click.stop="handleDelete(post.id)" class="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-        </div>
-
-        <div class="flex justify-between items-start pr-16">
+        <div class="flex justify-between items-start gap-4">
           <h2 class="text-lg font-semibold text-gray-900 leading-tight">
             <span v-if="post.status === 'deleted'" class="mr-2 text-gray-500">[已删除]</span>
             {{ post.title }}
@@ -57,19 +52,31 @@
             <span v-if="post.parent_id" class="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono border border-blue-100">⑂ Forked</span>
           </div>
           
-          <div class="flex items-center gap-2">
-            <div v-if="post.tags && post.tags.length > 0" class="flex flex-wrap justify-end gap-1.5">
-              <span 
-                v-for="tag in post.tags" 
-                :key="tag" 
-                :class="['px-2 py-0.5 border rounded-sm text-[11px] font-mono', getTagStyle(tag, post.status === 'deleted')]"
-              >
-                {{ tag }}
-              </span>
+          <div class="flex items-center gap-3">
+            
+            <div v-if="canOperate(post)" class="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
+              <button @click.stop="handleEdit(post.id)" class="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100" title="编辑">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button v-if="post.status !== 'deleted'" @click.stop="handleDelete(post.id)" class="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100" title="删除">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
             </div>
-            <span v-if="post.created_via !== 'web'" class="text-xs text-gray-400 font-mono ml-1">via {{ post.created_via }}</span>
+
+            <div class="flex items-center gap-1.5">
+              <div v-if="post.tags && post.tags.length > 0" class="flex flex-wrap justify-end gap-1.5">
+                <span 
+                  v-for="tag in post.tags" 
+                  :key="tag" 
+                  :class="['px-2 py-0.5 border rounded-sm text-[11px] font-mono', getTagStyle(tag, post.status === 'deleted')]"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+              <span v-if="post.created_via !== 'web'" class="text-xs text-gray-400 font-mono ml-1">via {{ post.created_via }}</span>
+            </div>
+
           </div>
-          
         </div>
       </div>
     </div>
