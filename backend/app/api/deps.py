@@ -11,12 +11,19 @@ from app.core.config import settings
 # 这里的 "/api/auth/login" 必须和 main.py 中挂载的路由路径完全一致
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
+ADMIN_USERNAME = "admin"
+
+
+def is_admin(user: User) -> bool:
+    return user.username == ADMIN_USERNAME
+
+
 def get_current_user(
     token: str = Depends(oauth2_scheme), # 这里直接拿到解析后的 token 字符串
     db: Session = Depends(get_db)
 ) -> User:
     user = None
-    
+
     try:
         # 路线 A：尝试作为网页端 JWT 解析
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])

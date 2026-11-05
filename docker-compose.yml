@@ -15,6 +15,9 @@ services:
     restart: always
     ports:
       - "8080:80"
+    volumes:
+      # 命令行客户端，通过 http://HOST:8080/cli/snip.py 下载
+      - ./cli:/usr/share/nginx/html/cli:ro
     depends_on:
       - backend
 

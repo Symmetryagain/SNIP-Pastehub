@@ -26,6 +26,15 @@ export const useAuthStore = defineStore('auth', {
       if (!state.token) return null
       const payload = parseJwt(state.token)
       return payload ? payload.sub : null
+    },
+    username: (state) => {
+      if (!state.token) return null
+      const payload = parseJwt(state.token)
+      return payload ? payload.username || null : null
+    },
+    // 仅用于控制按钮显隐，真正的权限校验在后端
+    isAdmin() {
+      return this.username === 'admin'
     }
   },
   actions: {

@@ -1,6 +1,6 @@
 # app/schemas.py
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 
 # --- Token ---
@@ -13,8 +13,14 @@ class UserResponse(BaseModel):
     id: str
     username: str
     api_token: str
-    
+
     model_config = ConfigDict(from_attributes=True)
+
+class MeResponse(BaseModel):
+    id: str
+    username: str
+    is_admin: bool
+    api_token: str
 
 # --- Post ---
 class PostBase(BaseModel):
@@ -24,7 +30,8 @@ class PostBase(BaseModel):
     tags: List[str] = []
 
 class PostCreate(PostBase):
-    pass
+    # 来源标记：网页端默认 web，命令行工具传 cli
+    created_via: Literal["web", "cli", "api"] = "web"
 
 class PostUpdate(BaseModel):
     title: Optional[str] = None

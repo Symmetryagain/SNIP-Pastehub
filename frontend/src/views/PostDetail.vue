@@ -93,15 +93,7 @@ const isAuthor = computed(() => {
   return post.value && authStore.userId === post.value.author_id
 })
 
-const isAdmin = computed(() => {
-  if (!authStore.token) return false;
-  try {
-    const payload = JSON.parse(atob(authStore.token.split('.')[1]));
-    return payload.username === 'admin';
-  } catch {
-    return false;
-  }
-});
+const isAdmin = computed(() => authStore.isAdmin)
 
 const loadPost = async () => {
   loading.value = true

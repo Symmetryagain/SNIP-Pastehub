@@ -96,14 +96,12 @@ const authStore = useAuthStore()
 const posts = ref([])
 const loading = ref(true)
 
-const isAdmin = computed(() => authStore.token && JSON.parse(atob(authStore.token.split('.')[1])).username === 'admin')
-
 const canOperate = (post) => {
   // 如果帖子已经删了，谁都不能再编辑或删除
   if (post.status === 'deleted') return false;
-  
+
   // 否则，只有作者本人或 admin 可以操作
-  return authStore.userId === post.author_id || isAdmin.value;
+  return authStore.userId === post.author_id || authStore.isAdmin;
 }
 
 const fetchPosts = async () => {
