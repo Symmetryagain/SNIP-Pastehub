@@ -101,6 +101,7 @@ snip list          # 每次调用都带上 Key，不需要登录，也不在本�
 - `snip push` 只把新帖 ID 输出到 stdout，可以写成 `ID=$(snip push notes.md)`。
 - 所有命令都支持 `--json`。退出码：0 成功，1 错误，2 用法错误，3 认证失败，4 不存在/已删除，5 网络错误。
 - 完整帮助：`snip --help`、`snip push --help`。
+- **给 Agent 的使用说明**：`http://你的服务器IP:8080/cli/AGENT.md`（源文件 `cli/AGENT.md`）。让 Agent 先读这份文档，并在它的运行环境里设置 `SNIP_TOKEN` 即可。
 
 ---
 

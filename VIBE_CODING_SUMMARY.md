@@ -1,4 +1,4 @@
-Snip Share 是一个面向极客小团队的轻量级知识共享空间，支持 Markdown 编辑、LaTeX 数学公式渲染、Fork 派生机制和多维标签引擎。项目初版在 2 天内通过 Agent 驱动开发完成，共 15 次提交，覆盖前后端全栈及 Docker 部署；11 月 5 日又做了一轮代码审查，修复了问题并新增命令行客户端（3 次提交）。目前代码约 2350 行（不含文档和 package-lock.json）。
+Snip Share 是一个面向极客小团队的轻量级知识共享空间，支持 Markdown 编辑、LaTeX 数学公式渲染、Fork 派生机制和多维标签引擎。项目初版在 2 天内通过 Agent 驱动开发完成，共 15 次提交，覆盖前后端全栈及 Docker 部署；11 月 5 日又做了一轮代码审查，修复了问题并新增命令行客户端（4 次提交）。目前代码约 2350 行（不含文档和 package-lock.json）。
 
 技术栈方面，前端采用 Vue 3、Vite 8、Tailwind CSS v4 和 md-editor-v3 编辑器，后端使用 FastAPI、SQLAlchemy 2.0 和 SQLite，通过 Docker Compose 编排双容器并用 Nginx 反向代理统一对外暴露。命令行客户端是一个只依赖 Python 标准库的单文件脚本。
 

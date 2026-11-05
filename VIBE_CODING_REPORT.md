@@ -5,7 +5,7 @@
 **Snip Share** 是一个为极客小团队打造的轻量级自托管同步空间，支持完整的 Markdown 语法和 LaTeX 数学公式渲染，并引入 Fork 机制与多维标签引擎，允许成员在不破坏原帖的情况下进行知识的分类、检索与并行演进。
 
 - **开发周期**：2026年4月17日 — 4月18日（2天），11月5日补充代码审查、修复与 CLI
-- **总提交数**：15 commits（初版）+ 3 commits（11月5日）
+- **总提交数**：15 commits（初版）+ 4 commits（11月5日）
 - **代码总量**：约 2350 行（不含文档、`package-lock.json`、node_modules 与构建产物；初版约 1450 行，CLI 约 700 行为后加）
 - **开发方式**：100% Agent / AI 驱动（Vibe Coding）
 
@@ -70,7 +70,7 @@
 
 ### 7. 命令行客户端 `snip`
 
-- 单文件、零依赖，由 Nginx 在 `/cli/snip.py` 提供下载
+- 单文件、零依赖，由 Nginx 在 `/cli/snip.py` 提供下载；给 Agent 的使用说明在 `/cli/AGENT.md`
 - 命令：`login` / `logout` / `whoami` / `token rotate` / `list` / `show` / `push` / `edit` / `rm`
 - 两种认证方式：`snip login` 保存密码会话；`SNIP_TOKEN` 环境变量提供 API Key，snip 不在本地保存 Key
 - 面向脚本和 Agent：所有命令支持 `--json`，错误码区分认证、不存在和网络错误；`push` 只把新 ID 输出到 stdout；ID 可以用前缀或 URL
@@ -111,7 +111,8 @@ SNIP-Pastehub/
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── cli/
-│   └── snip.py                  # 命令行客户端（单文件，零依赖）
+│   ├── snip.py                  # 命令行客户端（单文件，零依赖）
+│   └── AGENT.md                 # 给 Agent 的使用说明（同样由 Nginx 提供）
 ├── frontend/
 │   ├── src/
 │   │   ├── api/                 # axios 接口封装（auth, posts）
@@ -142,7 +143,7 @@ SNIP-Pastehub/
 |------|------|--------|
 | 4月17日 | 项目初始化、Docker 环境搭建、README | 8 commits |
 | 4月18日 | 博客标签功能（前后端联动）、Bug 修复与优化 | 7 commits |
-| 11月5日 | 代码审查：修复密钥硬编码与管理员权限问题；新增 CLI；API Key 改为只展示一次 + 哈希存储；修正文档 | 3 commits |
+| 11月5日 | 代码审查：修复密钥硬编码与管理员权限问题；新增 CLI；API Key 改为只展示一次 + 哈希存储；Agent 使用说明；修正文档 | 4 commits |
 
 ### 开发节奏
 
@@ -187,7 +188,7 @@ CLI 的第一版实现本身也出过一次设计偏差：为了支持密码登�
 | 指标 | 数值 |
 |------|------|
 | 总开发时长 | ~2 天（初版）+ 1 次审查迭代 |
-| 总提交数 | 15（初版）+ 3 |
+| 总提交数 | 15（初版）+ 4 |
 | 总代码行数 | ~2,350（不含文档与 `package-lock.json`） |
 | 后端 Python 文件 | 16 个（其中 4 个为空的 `__init__.py`） |
 | 前端 Vue/JS 文件 | 13 个（含未使用的模板组件 `HelloWorld.vue`） |
