@@ -1,9 +1,8 @@
 # init_db.py
-import uuid
 import getpass
 from app.db.database import SessionLocal, engine, Base
 from app.db.models import User
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, generate_api_token, hash_api_token
 
 def init():
     # 确保表结构已创建
@@ -33,20 +32,21 @@ def init():
         break
     
     # 生成专属 API Token
-    api_token = "tok_" + uuid.uuid4().hex
+    # 数据库只存哈希，明文只在下面打印这一次
+    api_token = generate_api_token()
     
     user = User(
         username="admin",
         password_hash=get_password_hash(password),
-        api_token=api_token
+        api_token_hash=hash_api_token(api_token)
     )
     db.add(user)
     db.commit()
     
     print("\n管理员账号创建成功！")
     print("用户名: admin")
-    print(f"CLI 专属 API Token: {api_token}")
-    print("请妥善保管您的密码和 Token。")
+    print(f"API Key: {api_token}")
+    print("API Key 只显示这一次，服务器不保存明文，请立即妥善保存。")
     
     db.close()
 

@@ -3,6 +3,15 @@
 
 Single file, Python 3.8+, standard library only.
 
+Two ways to authenticate:
+  1. Password session (for humans): `snip login` stores a 7-day session,
+     later commands reuse it until it expires.
+  2. API key (for scripts/agents): stateless. Set SNIP_TOKEN (and
+     SNIP_SERVER); every invocation sends the key and does one operation.
+     The key is never written to disk by snip. It is shown only once, when
+     created; `snip token rotate` (needs a password session) issues a new
+     one and revokes the old one.
+
 Quick start:
   snip login --server http://HOST:8080 -u alice     # asks for password
   echo "hello" | snip push -t "greeting" --tag Note  # prints the new post id
@@ -12,11 +21,12 @@ Quick start:
 
 Environment variables:
   SNIP_SERVER    server URL (overrides the saved one)
-  SNIP_TOKEN     API token (tok_...), skips `snip login` entirely
+  SNIP_TOKEN     API key (tok_...); takes precedence over a saved session
   SNIP_CONFIG    config file path (default ~/.config/snip/config.json)
   SNIP_USERNAME  / SNIP_PASSWORD  non-interactive `snip login`
 """
 import argparse
+import base64
 import datetime as dt
 import getpass
 import json
@@ -27,7 +37,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -132,6 +142,7 @@ class Client:
         self.server = normalize_server(server)
         self.token = token
         self.timeout = timeout
+        self.auth_method = None
         self._post_cache = None
 
     def request(self, method, path, json_body=None, form=None, params=None, token=None):
@@ -184,7 +195,7 @@ class Client:
             )
         msg = "HTTP %s: %s" % (e.code, detail or e.reason)
         if e.code == 401:
-            return CliError(msg + " (run `snip login` again or check SNIP_TOKEN)", EXIT_AUTH, e.code)
+            return CliError(msg + " (check SNIP_TOKEN, or run `snip login` again)", EXIT_AUTH, e.code)
         if e.code in (404, 410):
             return CliError(msg, EXIT_NOT_FOUND, e.code)
         return CliError(msg, EXIT_ERROR, e.code)
@@ -223,16 +234,69 @@ class Client:
         return matches[0]["id"]
 
 
-def get_client(args, need_token=True):
+def session_expiry(token):
+    """Expiry of a session JWT (read locally, signature not checked), or None."""
+    try:
+        part = token.split(".")[1]
+        part += "=" * (-len(part) % 4)
+        exp = json.loads(base64.urlsafe_b64decode(part.encode("ascii"))).get("exp")
+        return dt.datetime.fromtimestamp(exp, dt.timezone.utc) if exp else None
+    except Exception:
+        return None
+
+
+def _saved_session(cfg):
+    session = cfg.get("session")
+    if not session:
+        return None
+    exp = session_expiry(session)
+    if exp is not None and exp <= dt.datetime.now(dt.timezone.utc):
+        raise CliError("session expired at %s: run `snip login` again"
+                       % exp.astimezone().strftime("%Y-%m-%d %H:%M"), EXIT_AUTH)
+    return session
+
+
+def get_client(args, session_only=False):
+    """Pick credentials: SNIP_TOKEN (API key) first, then the saved session.
+
+    session_only: for key management, which an API key may not do.
+    """
     cfg = load_config()
     server = getattr(args, "server", None) or os.environ.get("SNIP_SERVER") or cfg.get("server")
     if not server:
-        raise CliError("no server configured: run `snip login --server http://HOST:PORT` "
-                       "or set SNIP_SERVER", EXIT_AUTH)
-    token = os.environ.get("SNIP_TOKEN") or cfg.get("token")
-    if need_token and not token:
-        raise CliError("not logged in: run `snip login` or set SNIP_TOKEN", EXIT_AUTH)
-    return Client(server, token)
+        raise CliError("no server configured: set SNIP_SERVER or run "
+                       "`snip login --server http://HOST:PORT`", EXIT_AUTH)
+    if session_only:
+        session = _saved_session(cfg)
+        if not session:
+            raise CliError("this command needs a password session (an API key cannot manage keys): "
+                           "run `snip login` first", EXIT_AUTH)
+        client = Client(server, session)
+        client.auth_method = "session"
+        return client
+
+    api_key = os.environ.get("SNIP_TOKEN")
+    if api_key:
+        client = Client(server, api_key.strip())
+        client.auth_method = "api_key"
+        return client
+    session = _saved_session(cfg)
+    if not session:
+        raise CliError("not authenticated: set SNIP_TOKEN=<api key>, or run `snip login`", EXIT_AUTH)
+    client = Client(server, session)
+    client.auth_method = "session"
+    return client
+
+
+def read_password(args, username):
+    if getattr(args, "password_stdin", False):
+        return sys.stdin.buffer.readline().decode("utf-8").rstrip("\r\n")
+    password = os.environ.get("SNIP_PASSWORD")
+    if password is not None:
+        return password
+    if not sys.stdin.isatty():
+        raise CliError("password required: use --password-stdin or set SNIP_PASSWORD", EXIT_USAGE)
+    return getpass.getpass("Password for %s: " % username)
 
 
 # ---------------------------------------------------------------- input
@@ -295,68 +359,89 @@ def summarize(post, client):
 # ---------------------------------------------------------------- commands
 
 def cmd_login(args):
+    """Password login: stores a session (JWT) locally. Never fetches or stores the API key."""
     cfg = load_config()
     server = args.server or os.environ.get("SNIP_SERVER") or cfg.get("server")
     if not server:
         raise CliError("please pass --server http://HOST:PORT", EXIT_USAGE)
     client = Client(server)
 
-    if args.token:
-        api_token = args.token.strip()
-    else:
-        username = args.username or os.environ.get("SNIP_USERNAME")
-        if not username:
-            if not sys.stdin.isatty():
-                raise CliError("username required: pass -u USER or set SNIP_USERNAME", EXIT_USAGE)
-            username = input("Username: ").strip()
-        if args.password_stdin:
-            password = sys.stdin.buffer.readline().decode("utf-8").rstrip("\r\n")
-        else:
-            password = os.environ.get("SNIP_PASSWORD")
-            if password is None:
-                if not sys.stdin.isatty():
-                    raise CliError("password required: use --password-stdin or set SNIP_PASSWORD", EXIT_USAGE)
-                password = getpass.getpass("Password for %s: " % username)
-        try:
-            res = client.request("POST", "/auth/login", form={"username": username, "password": password})
-        except CliError as e:
-            if e.status == 400:
-                e.code = EXIT_AUTH
-            raise
-        # Exchange the 7-day JWT for the user's long-lived API token.
-        api_token = client.request("GET", "/auth/me", token=res["access_token"])["api_token"]
+    username = args.username or os.environ.get("SNIP_USERNAME")
+    if not username:
+        if not sys.stdin.isatty():
+            raise CliError("username required: pass -u USER or set SNIP_USERNAME", EXIT_USAGE)
+        username = input("Username: ").strip()
+    password = read_password(args, username)
+    try:
+        res = client.request("POST", "/auth/login", form={"username": username, "password": password})
+    except CliError as e:
+        if e.status == 400:
+            e.code = EXIT_AUTH
+        raise
+    session = res["access_token"]
+    me = client.request("GET", "/auth/me", token=session)
 
-    me = client.request("GET", "/auth/me", token=api_token)
-    cfg.update({"server": client.server, "token": api_token, "username": me["username"]})
+    cfg.pop("token", None)  # drop credentials saved by snip <= 1.0
+    cfg.update({"server": client.server, "session": session, "username": me["username"]})
     path = save_config(cfg)
+    exp = session_expiry(session)
+    exp_s = exp.astimezone().strftime("%Y-%m-%d %H:%M") if exp else "unknown"
     if args.json:
-        out_json({"server": client.server, "username": me["username"],
-                  "is_admin": me["is_admin"], "config": path})
+        out_json({"server": client.server, "username": me["username"], "is_admin": me["is_admin"],
+                  "session_expires": exp.isoformat() if exp else None, "config": path})
     else:
-        out("Logged in as %s @ %s" % (me["username"], client.server))
-        err("credentials saved to %s" % path)
+        out("Logged in as %s @ %s (session valid until %s)" % (me["username"], client.server, exp_s))
+        err("session saved to %s" % path)
 
 
 def cmd_logout(args):
     cfg = load_config()
-    had = cfg.pop("token", None) is not None
+    had = any(cfg.pop(k, None) is not None for k in ("session", "token"))
     cfg.pop("username", None)
     if had:
         save_config(cfg)
     if args.json:
         out_json({"logged_out": had})
     else:
-        out("Logged out." if had else "Not logged in.")
+        out("Logged out (local session removed)." if had else "No saved session.")
 
 
 def cmd_whoami(args):
     client = get_client(args)
     me = client.request("GET", "/auth/me")
-    info = {"server": client.server, "username": me["username"], "id": me["id"], "is_admin": me["is_admin"]}
+    info = {"server": client.server, "username": me["username"], "id": me["id"],
+            "is_admin": me["is_admin"], "auth": me.get("auth_method") or client.auth_method}
+    if client.auth_method == "session":
+        exp = session_expiry(client.token)
+        info["session_expires"] = exp.isoformat() if exp else None
     if args.json:
         out_json(info)
+        return
+    if info["auth"] == "api_key":
+        how = "API key (SNIP_TOKEN)"
     else:
-        out("%s%s @ %s" % (me["username"], " (admin)" if me["is_admin"] else "", client.server))
+        exp = info.get("session_expires")
+        how = "session, valid until %s" % (fmt_time(exp) if exp else "unknown")
+    out("%s%s @ %s  [%s]" % (me["username"], " (admin)" if me["is_admin"] else "", client.server, how))
+
+
+def cmd_token_rotate(args):
+    client = get_client(args, session_only=True)
+    username = load_config().get("username") or "current user"
+    password = read_password(args, username)
+    try:
+        res = client.request("POST", "/auth/token/rotate", json_body={"password": password})
+    except CliError as e:
+        if e.status == 403:
+            e.code = EXIT_AUTH
+        raise
+    key = res["api_token"]
+    if args.json:
+        out_json({"api_token": key})
+    else:
+        out(key)  # stdout = key only, so it can be captured
+        err("New API key above. It is shown only this once; the previous key no longer works.\n"
+            "Use it as: SNIP_SERVER=%s SNIP_TOKEN=<key> snip list" % client.server)
 
 
 def cmd_list(args):
@@ -494,6 +579,14 @@ def cmd_rm(args):
 # ---------------------------------------------------------------- parser
 
 EPILOG = """\
+authentication:
+  password session  `snip login` saves a 7-day session; for interactive use.
+  API key           set SNIP_TOKEN=tok_... (and SNIP_SERVER); stateless, each
+                    call sends the key. snip never stores it. Keys are shown
+                    once; `snip token rotate` (password session) makes a new
+                    one and revokes the old one.
+  SNIP_TOKEN wins over a saved session when both are present.
+
 id arguments accept a full id, a unique prefix (>= 4 hex chars, as shown by
 `snip list`) or a post URL.
 
@@ -505,6 +598,7 @@ examples:
   snip login --server http://HOST:8080 -u alice
   printf '%s' "$PASSWORD" | snip login --server http://HOST:8080 -u alice --password-stdin
   SNIP_SERVER=http://HOST:8080 SNIP_TOKEN=tok_xxx snip list --json
+  snip token rotate                       # prints a new API key, once
   git diff | snip push -t "my diff" --tag Snippet
   snip push notes.md --tag Note,Idea
   snip show 3f2a > out.txt
@@ -534,16 +628,26 @@ def build_parser():
     def add(name, func, help_text, aliases=()):
         sp = sub.add_parser(name, parents=[common], help=help_text, description=help_text,
                             aliases=list(aliases))
-        sp.set_defaults(func=func)
+        if func is not None:
+            sp.set_defaults(func=func)
         return sp
 
-    sp = add("login", cmd_login, "log in and save credentials")
+    sp = add("login", cmd_login, "log in with username/password and save a 7-day session")
     sp.add_argument("-u", "--username")
     sp.add_argument("--password-stdin", action="store_true", help="read password from first line of stdin")
-    sp.add_argument("--token", help="log in with an existing API token (tok_...) instead of a password")
 
-    add("logout", cmd_logout, "forget saved credentials")
-    add("whoami", cmd_whoami, "show the current user")
+    add("logout", cmd_logout, "remove the saved session")
+    add("whoami", cmd_whoami, "show the current user and how you are authenticated")
+
+    sp = add("token", None, "manage your API key (requires a password session)")
+    tsub = sp.add_subparsers(dest="token_command", metavar="ACTION")
+    tsub.required = True
+    tp = tsub.add_parser("rotate", parents=[common],
+                         help="create a new API key (shown once) and revoke the old one",
+                         description="Create a new API key and revoke the old one. Asks for your "
+                                     "password again. The key is printed once to stdout.")
+    tp.add_argument("--password-stdin", action="store_true", help="read password from first line of stdin")
+    tp.set_defaults(func=cmd_token_rotate)
 
     sp = add("list", cmd_list, "list posts (your own by default)", aliases=["ls"])
     sp.add_argument("-a", "--all", action="store_true", help="list everyone's posts")

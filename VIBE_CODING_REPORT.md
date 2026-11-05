@@ -5,8 +5,8 @@
 **Snip Share** 是一个为极客小团队打造的轻量级自托管同步空间，支持完整的 Markdown 语法和 LaTeX 数学公式渲染，并引入 Fork 机制与多维标签引擎，允许成员在不破坏原帖的情况下进行知识的分类、检索与并行演进。
 
 - **开发周期**：2026年4月17日 — 4月18日（2天），11月5日补充代码审查、修复与 CLI
-- **总提交数**：15 commits（初版）+ 2 commits（11月5日）
-- **代码总量**：约 2200 行（不含 `package-lock.json`、node_modules 与构建产物；初版约 1400 行，其中 CLI 约 600 行为后加）
+- **总提交数**：15 commits（初版）+ 3 commits（11月5日）
+- **代码总量**：约 2350 行（不含文档、`package-lock.json`、node_modules 与构建产物；初版约 1450 行，CLI 约 700 行为后加）
 - **开发方式**：100% Agent / AI 驱动（Vibe Coding）
 
 ---
@@ -55,8 +55,9 @@
 
 ### 5. 双轨认证体系
 
-- **网页端**：JWT Bearer Token（基于 bcrypt 密码哈希）
-- **终端 CLI**：持久化 API Token（格式 `tok_` + UUID），可直接用于 Bearer 认证；`snip login` 用密码换取 JWT 后，通过 `/api/auth/me` 取得 API Token 并保存在本地
+- **密码会话**：网页端和 `snip login` 用账号密码换取 JWT（7 天有效），属于有状态的持续会话
+- **API Key**：参照大模型服务的 API Key 设计，给脚本和 Agent 使用。无状态，每次请求携带 `Bearer tok_...`；只在生成时（`add_user.py` / `init_db.py` / 轮换）展示一次，数据库只存 SHA-256 哈希；旧版本的明文 Key 在启动时原地转为哈希，用户手里的 Key 不受影响
+- **Key 管理与使用分离**：`POST /api/auth/token/rotate` 要求密码会话并再次输入密码，API Key 本身不能用于轮换。这样会话泄露换不到永久 Key，Key 泄露也无法把账号主人锁在外面
 - **JWT 签名密钥**：首次启动时随机生成并保存在数据卷中（初版写死在代码里，见下文“代码审查与修复”）
 - 自动鉴权路由守卫（Vue Router beforeEach）
 - 401 自动跳转登录页，410 优雅拦截墓碑响应
@@ -70,10 +71,11 @@
 ### 7. 命令行客户端 `snip`
 
 - 单文件、零依赖，由 Nginx 在 `/cli/snip.py` 提供下载
-- 命令：`login` / `logout` / `whoami` / `list` / `show` / `push` / `edit` / `rm`
+- 命令：`login` / `logout` / `whoami` / `token rotate` / `list` / `show` / `push` / `edit` / `rm`
+- 两种认证方式：`snip login` 保存密码会话；`SNIP_TOKEN` 环境变量提供 API Key，snip 不在本地保存 Key
 - 面向脚本和 Agent：所有命令支持 `--json`，错误码区分认证、不存在和网络错误；`push` 只把新 ID 输出到 stdout；ID 可以用前缀或 URL
 - 内容可以来自文件、stdin 或 `-c` 参数；`edit` 不会隐式读取 stdin，避免空管道清掉内容
-- 后端配合：`GET /api/auth/me`、`GET /api/posts/?mine=true`，创建帖子时可指定 `created_via=cli`
+- 后端配合：`GET /api/auth/me`（不返回 Key）、`POST /api/auth/token/rotate`、`GET /api/posts/?mine=true`，创建帖子时可指定 `created_via=cli`
 
 ### 8. Docker 一键部署
 
@@ -91,15 +93,16 @@ SNIP-Pastehub/
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── deps.py          # JWT/API Token 双轨认证中间件
+│   │   │   ├── deps.py          # 会话 / API Key 双轨认证
 │   │   │   └── routers/
-│   │   │       ├── auth.py      # 登录、Token 签发与 /me
+│   │   │       ├── auth.py      # 登录、/me、API Key 轮换
 │   │   │       └── posts.py     # 帖子 CRUD + 权限控制
 │   │   ├── core/
 │   │   │   ├── config.py        # 环境配置 + JWT 密钥生成/持久化
 │   │   │   └── security.py      # 密码哈希 / JWT 编码
 │   │   ├── db/
 │   │   │   ├── database.py      # SQLAlchemy 引擎与会话管理
+│   │   │   ├── migrate.py       # 启动时迁移：明文 API Key → 哈希
 │   │   │   └── models.py        # User / Post 数据模型
 │   │   ├── main.py              # FastAPI 入口 + CORS + 路由挂载
 │   │   └── schemas.py           # Pydantic 请求/响应模型
@@ -139,7 +142,7 @@ SNIP-Pastehub/
 |------|------|--------|
 | 4月17日 | 项目初始化、Docker 环境搭建、README | 8 commits |
 | 4月18日 | 博客标签功能（前后端联动）、Bug 修复与优化 | 7 commits |
-| 11月5日 | 代码审查：修复密钥硬编码与管理员权限问题；新增 CLI；修正文档 | 2 commits |
+| 11月5日 | 代码审查：修复密钥硬编码与管理员权限问题；新增 CLI；API Key 改为只展示一次 + 哈希存储；修正文档 | 3 commits |
 
 ### 开发节奏
 
@@ -168,9 +171,12 @@ SNIP-Pastehub/
 | JWT 签名密钥写死在 `config.py` 中，部署时也没有覆盖 | 帖子接口会返回 `author_id`，任何成员都能拿到管理员 ID，再用这个已知密钥伪造管理员或其他成员的 JWT | 去掉默认值：优先读取环境变量 `SECRET_KEY`，否则首次启动时随机生成，写入数据卷中的 `.secret_key`（权限 600） |
 | 前端读取 JWT 中的 `username` 判断管理员，但签发 JWT 时只写入了 `sub` 和 `exp` | 管理员在网页上永远看不到他人帖子的编辑/删除按钮 | JWT 加入 `username`；管理员判断统一放到 Pinia store 的 `isAdmin` getter |
 | 后端编辑接口只允许作者本人修改 | 文档写的“管理员可编辑任意帖子”实际无法实现 | 编辑接口加上管理员例外，和删除接口保持一致 |
+| API Key 明文存储在数据库 | 数据库一旦泄露，所有人的 Key 都会泄露 | 改为只存 SHA-256 哈希，启动时自动迁移旧数据 |
 | 文档描述与实现不符 | 删除时“清空内容”、墓碑页“保留作者和元信息”、“Monaco 风格编辑器”、“去中心化”等说法与代码不一致 | 已按实际实现修正本文、摘要和 README |
 
 这几个问题有一个共同点：代码能运行，界面上也看不出错误，但功能本身不起作用。AI 生成的代码和 AI 写的总结都把它们描述成“已正确实现”。所以对 Agent 产出的代码，仍然需要人工通读或做针对性测试，不能只看总结。
+
+CLI 的第一版实现本身也出过一次设计偏差：为了支持密码登录，`/api/auth/me` 会返回 API Key，`snip login` 还会把永久 Key 存到本地。这把密码会话和 API Key 两条线混在了一起，也违背了“Key 只展示一次”的原始设计。经讨论后改为：`/me` 不再返回 Key，密码登录只保存会话，Key 只能通过需要密码的轮换接口重新生成。
 
 审查中还记录了一些未处理的次要问题：首页只拉取最近 50 条帖子且没有分页；没有数据库迁移工具；`index.html` 引用的 favicon 不存在；仓库里有误提交的 `.pyc` 文件和 Vite 模板残留文件。
 
@@ -181,13 +187,13 @@ SNIP-Pastehub/
 | 指标 | 数值 |
 |------|------|
 | 总开发时长 | ~2 天（初版）+ 1 次审查迭代 |
-| 总提交数 | 15（初版）+ 2 |
-| 总代码行数 | ~2,200（不含 `package-lock.json`） |
-| 后端 Python 文件 | 15 个（其中 4 个为空的 `__init__.py`） |
+| 总提交数 | 15（初版）+ 3 |
+| 总代码行数 | ~2,350（不含文档与 `package-lock.json`） |
+| 后端 Python 文件 | 16 个（其中 4 个为空的 `__init__.py`） |
 | 前端 Vue/JS 文件 | 13 个（含未使用的模板组件 `HelloWorld.vue`） |
-| CLI | 1 个文件，约 600 行 |
+| CLI | 1 个文件，约 700 行 |
 | Docker 镜像 | 2 个（backend + frontend） |
-| API 端点 | 7 个（登录、`/me`、帖子 CRUD） |
+| API 端点 | 8 个（登录、`/me`、Key 轮换、帖子 CRUD） |
 
 ---
 

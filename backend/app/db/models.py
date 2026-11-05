@@ -19,7 +19,8 @@ class User(Base):
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    api_token = Column(String, unique=True, index=True, nullable=False) # 预留给 CLI
+    # API Key 的 SHA-256 哈希（明文只在生成时展示一次）。数据库列名沿用 api_token，无需改表
+    api_token_hash = Column("api_token", String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime, default=get_utc_now)
 
 class Post(Base):

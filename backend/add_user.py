@@ -1,10 +1,9 @@
 # add_user.py
 import sys
-import uuid
 import getpass
 from app.db.database import SessionLocal
 from app.db.models import User
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, generate_api_token, hash_api_token
 
 def main():
     print("=== Snip Share 用户添加工具 ===")
@@ -37,12 +36,13 @@ def main():
         break
         
     # 4. 创建用户
-    api_token = "tok_" + uuid.uuid4().hex
+    # 数据库只存哈希，明文只在下面打印这一次
+    api_token = generate_api_token()
     
     new_user = User(
         username=username,
         password_hash=get_password_hash(password),
-        api_token=api_token
+        api_token_hash=hash_api_token(api_token)
     )
     
     try:
@@ -51,9 +51,10 @@ def main():
         print("\n用户创建成功！")
         print("------------------------")
         print(f"用户名:   {username}")
-        print(f"API Token: {api_token}")
+        print(f"API Key:  {api_token}")
         print("------------------------")
-        print("请将上述信息发送给该用户。")
+        print("API Key 只显示这一次，服务器不保存明文。请立即发送给该用户。")
+        print("丢失后可由用户自行执行 `snip login` + `snip token rotate` 重新生成。")
     except Exception as e:
         db.rollback()
         print(f"\n创建失败: {e}")

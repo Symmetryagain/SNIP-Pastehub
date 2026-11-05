@@ -9,18 +9,18 @@ class Token(BaseModel):
     token_type: str
 
 # --- User ---
-class UserResponse(BaseModel):
-    id: str
-    username: str
-    api_token: str
-
-    model_config = ConfigDict(from_attributes=True)
-
 class MeResponse(BaseModel):
     id: str
     username: str
     is_admin: bool
-    api_token: str
+    auth_method: Literal["session", "api_key"]  # 本次请求用的是密码会话（JWT）还是 API Key
+
+# --- API Key ---
+class RotateApiTokenRequest(BaseModel):
+    password: str  # 轮换 Key 需要再次输入密码
+
+class ApiTokenResponse(BaseModel):
+    api_token: str  # 明文只在这里出现一次
 
 # --- Post ---
 class PostBase(BaseModel):

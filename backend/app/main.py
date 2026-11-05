@@ -2,10 +2,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.db.database import engine, Base
+from app.db.database import engine, Base, SessionLocal
+from app.db.migrate import hash_plaintext_api_tokens
 from app.api.routers import auth, posts
 
 Base.metadata.create_all(bind=engine)
+
+# 旧版本把 API Key 明文存库，启动时原地转为哈希（幂等）
+with SessionLocal() as _db:
+    _n = hash_plaintext_api_tokens(_db)
+    if _n:
+        print(f"[migrate] 已将 {_n} 个明文 API Key 转为哈希存储", flush=True)
 
 app = FastAPI(title=settings.PROJECT_NAME)
 

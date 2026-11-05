@@ -11,7 +11,7 @@ Snip Share 不仅仅是一个共享剪切板。它支持完整的 Markdown 语�
 - **数学公式**：完美支持 LaTeX 行内及块级公式渲染（基于 KaTeX/MathJax）。
 - **Fork 机制**：一键派生他人的帖子（自动继承标签），支持思路的并行演进。
 - **墓碑模式**：作者删除帖子后保留其“存在痕迹”（标签与排版变灰），确保派生贴的溯源链条完整。
-- **双轨认证**：网页端 JWT 鉴权 + 长期 API Token，供命令行客户端 `snip` 使用。
+- **双轨认证**：账号密码登录建立会话（网页端和 `snip login`，7 天有效）；API Key 无状态，每次请求携带，供脚本和 Agent 使用。Key 只在生成时展示一次，服务器只存 SHA-256 哈希，可以自助轮换。
 - **命令行客户端**：单文件、零依赖的 `snip`，支持登录、列表、查看、上传、编辑、删除，提供 `--json` 输出，便于脚本和 Agent 调用。
 - **管理员特权**：管理员可查阅被删除的历史存盘，并可编辑或删除任意成员的帖子。
 
@@ -48,7 +48,7 @@ docker exec -it snip_backend python init_db.py
 ### 4. 访问
 打开浏览器访问：`http://你的服务器IP:8080`
 
-> JWT 签名密钥：首次启动时自动生成随机密钥并保存在 `snip_data/.secret_key`（权限 600）。也可以通过环境变量 `SECRET_KEY`（至少 32 个字符）指定。更换密钥会让所有网页端登录失效，但不影响 API Token。
+> JWT 签名密钥：首次启动时自动生成随机密钥并保存在 `snip_data/.secret_key`（权限 600）。也可以通过环境变量 `SECRET_KEY`（至少 32 个字符）指定。更换密钥会让所有登录会话失效，但不影响 API Key。
 
 ---
 
@@ -62,14 +62,29 @@ chmod +x ~/.local/bin/snip
 ```
 没有 `~/.local/bin` 的话，也可以直接 `python3 snip.py ...`。
 
-### 登录
+### 两种认证方式
+
+**1. 账号密码会话（给人用）**
 ```bash
 snip login --server http://你的服务器IP:8080 -u 用户名          # 交互式输入密码
 printf '%s' "$PW" | snip login --server http://... -u 用户名 --password-stdin   # 非交互
-snip login --server http://... --token tok_xxx                  # 直接用 API Token
 ```
-登录后会把服务器地址和**长期 API Token** 保存到 `~/.config/snip/config.json`（权限 600），之后无需重复登录。
-也可以完全不登录，只设置环境变量：`SNIP_SERVER=http://... SNIP_TOKEN=tok_xxx snip list`。
+登录后会话（JWT，7 天有效）保存在 `~/.config/snip/config.json`（权限 600），过期后重新登录。
+
+**2. API Key（给脚本和 Agent 用）**
+```bash
+export SNIP_SERVER=http://你的服务器IP:8080
+export SNIP_TOKEN=tok_xxx
+snip list          # 每次调用都带上 Key，不需要登录，也不在本地保存任何东西
+```
+- 和大模型服务的 API Key 是同一种模式：**只在生成时展示一次**，服务器只存哈希，之后无法再查看。
+- 新账号的 Key 由 `add_user.py` 打印一次。丢失或泄露时，用密码会话轮换（会再次要求输入密码）：
+  ```bash
+  snip login -u 用户名
+  snip token rotate      # 新 Key 打印到 stdout，只显示这一次；旧 Key 立即作废
+  ```
+- API Key 能调用所有帖子接口，但**不能管理 Key**，泄露了也没法把你锁在外面。
+- `SNIP_TOKEN` 和本地会话同时存在时，优先使用 `SNIP_TOKEN`。
 
 ### 常用命令
 | 命令 | 说明 |
@@ -79,7 +94,8 @@ snip login --server http://... --token tok_xxx                  # 直接用 API 
 | `cmd \| snip push` | 从 stdin 上传；也可以 `snip push file.md` 或 `snip push -c "文本"`；`-t` 指定标题，`--tag A,B` 打标签 |
 | `snip edit ID [FILE]` | 修改内容/标题/标签：`-c`、`-t`、`--tag`、`--clear-tags` |
 | `snip rm ID...` | 删除（墓碑模式） |
-| `snip whoami` / `snip logout` | 查看当前用户 / 清除本地凭证 |
+| `snip whoami` / `snip logout` | 查看当前用户和认证方式 / 清除本地会话 |
+| `snip token rotate` | 生成新 API Key（只显示一次）并作废旧 Key，需要密码会话 |
 
 - `ID` 可以是完整 ID、`snip list` 显示的前缀（至少 4 位），也可以是帖子 URL。
 - `snip push` 只把新帖 ID 输出到 stdout，可以写成 `ID=$(snip push notes.md)`。
